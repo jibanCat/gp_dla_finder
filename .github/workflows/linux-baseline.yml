@@ -1,0 +1,158 @@
+name: linux-blas-baseline
+
+# The Linux/OpenBLAS baseline the N42 compiled-likelihood prototype is gated on
+# (PI ruling N50). Docker was not available on the development machine, so this
+# job is how the baseline gets measured at all.
+#
+# ---------------------------------------------------------------------------
+# INFORMATIONAL. This job does NOT enforce a speed threshold.
+#
+# A shared GitHub-hosted runner is a noisy neighbour by construction. It is a
+# good place to discover a threading failure mode and to retain a reproducible
+# environment record; it is not a precision performance reference. If the later
+# N42 prototype lands near its ~10-15% continuation threshold, that decision
+# needs a controlled machine, not this job.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monthly. This measures a BLAS baseline; it does not gate a change, and
+    # running it on every push spent minutes to re-measure a constant.
+    - cron: "23 6 1 * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install with pinned numerical and diagnostic dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Pinned so the record describes a specific stack rather than
+          # "whatever resolved that day". threadpoolctl is mandatory here: a
+          # benchmark must never report complete thread-pool identification
+          # while saying "threadpoolctl not installed" (PI ruling N48).
+          pip install "numpy==2.2.6" "scipy==1.15.3" "threadpoolctl==3.5.0"
+          pip install -e . --no-deps
+
+      - name: Record the runner and stack identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "runner_os=${{ runner.os }}"
+            echo "runner_arch=${{ runner.arch }}"
+            echo "runner_image=${{ runner.name }}"
+            echo "commit=${{ github.sha }}"
+            echo "nproc=$(nproc)"
+            echo "--- /proc/cpuinfo model ---"
+            grep -m1 'model name' /proc/cpuinfo || true
+            echo "--- memory ---"
+            grep -m1 MemTotal /proc/meminfo || true
+            echo "--- versions ---"
+            python -c "import sys, numpy, scipy, threadpoolctl; print(f'python {sys.version.split()[0]} numpy {numpy.__version__} scipy {scipy.__version__} threadpoolctl {threadpoolctl.__version__}')"
+          } | tee runner-identity.txt
+
+      # The two configurations run in SEPARATE PROCESSES with the thread
+      # variables set before Python starts. Setting them from inside a running
+      # process is too late: OpenBLAS has already sized its pool.
+      - name: Audit under the runner's ordinary BLAS configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "command: python tools/blas_audit.py --repeats 2000 --json blas-linux-default.json"
+          python tools/blas_audit.py --repeats 2000 --json blas-linux-default.json \
+            | tee blas-linux-default.txt
+
+      - name: Audit with one BLAS thread
+        shell: bash
+        env:
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+          NUMEXPR_NUM_THREADS: "1"
+        run: |
+          set -euo pipefail
+          echo "command: OPENBLAS_NUM_THREADS=1 ... python tools/blas_audit.py --repeats 2000 --json blas-linux-1thread.json"
+          python tools/blas_audit.py --repeats 2000 --json blas-linux-1thread.json \
+            | tee blas-linux-1thread.txt
+
+      # Repeated in the OPPOSITE ORDER, because a shared runner can warm up or
+      # throttle over a job's lifetime and a single ordering would confound that
+      # with the effect being measured.
+      - name: Repeat, one thread first
+        shell: bash
+        env:
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+          NUMEXPR_NUM_THREADS: "1"
+        run: |
+          set -euo pipefail
+          python tools/blas_audit.py --repeats 2000 --json blas-linux-1thread-repeat.json \
+            | tee blas-linux-1thread-repeat.txt
+
+      - name: Repeat, default threads second
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/blas_audit.py --repeats 2000 --json blas-linux-default-repeat.json \
+            | tee blas-linux-default-repeat.txt
+
+      - name: Summarise
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' | tee blas-linux-summary.txt
+          import json
+
+          rows = [
+              ("default threads (first)", "blas-linux-default.json"),
+              ("one thread (second)", "blas-linux-1thread.json"),
+              ("one thread (first, repeat)", "blas-linux-1thread-repeat.json"),
+              ("default threads (second, repeat)", "blas-linux-default-repeat.json"),
+          ]
+          print(f"{'configuration':34s} {'ms/call':>9s} {'cpu/wall':>9s} {'pools':>6s}")
+          print("-" * 62)
+          values = {}
+          for label, path in rows:
+              record = json.load(open(path))
+              audit = record["audit"]
+              pools = record["blas"].get("threadpool_info")
+              n_pools = len(pools) if isinstance(pools, list) else 0
+              per_call = audit["whole_call"]["per_call_ms"]
+              values[label] = per_call
+              print(
+                  f"{label:34s} {per_call:9.4f} "
+                  f"{audit['threading']['likelihood_cpu_over_wall']:9.2f} {n_pools:6d}"
+              )
+
+          print()
+          print("INFORMATIONAL ONLY. A shared runner is not a precision reference;")
+          print("this job enforces no threshold and fails on no ratio.")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-blas-baseline
+          # Raw JSON plus the human-readable transcripts and the environment
+          # record. No private data, no paths from a developer machine: the
+          # audit's own provenance is already path-free.
+          path: |
+            blas-linux-*.json
+            blas-linux-*.txt
+            runner-identity.txt
+          retention-days: 90

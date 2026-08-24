@@ -1,0 +1,404 @@
+name: tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly full sweep: every interpreter, both platforms.
+    - cron: "17 5 * * 1"
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Endpoints only on push. The full 3.10-3.13 sweep runs on demand and
+        # weekly -- see the `full-matrix` workflow. Four interpreters on every
+        # push was the single largest routine cost and almost never caught
+        # anything the endpoints did not.
+        python-version: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["3.10","3.11","3.12","3.13"]' || '["3.10","3.13"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      # No compiler step on purpose: a default install must build and run
+      # without one (PI ruling D3).
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest --cov --cov-report=term-missing
+
+  minimum-deps:
+    # The inference core must work with numpy + scipy alone.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install -e . pytest
+      - run: python -c "import gp_dla_finder; print(gp_dla_finder.__version__)"
+      - run: pytest -q
+
+  catalogue-io:
+    # PI ruling, increment-13 correction 1. The `dev` extra does not install
+    # astropy, and tests/test_catalogue.py skips its whole module without it — so
+    # the green matrix reported those tests as SKIPPED while the review package
+    # described 44 of them as passing. A green run that silently skips the thing
+    # under discussion is worse than a red one.
+    #
+    # This job installs astropy through the declared `desi` extra and FAILS if the
+    # module is skipped or collects nothing. The minimum-deps job stays free of
+    # astropy on purpose: the fix is to test the optional FITS surface
+    # explicitly, not to make astropy a core dependency.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev,desi]'
+
+      - name: astropy must actually be importable
+        run: python -c "import astropy; print('astropy', astropy.__version__)"
+
+      - name: Run every astropy-backed test, and fail if any were skipped
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The set of tests is DISCOVERED, not listed. tests/conftest.py marks
+          # any module that imports astropy with `needs_astropy`, so a module
+          # added later is guarded without anyone editing this file. The old
+          # shell list missed tests/test_finder.py -- which carries the
+          # end-to-end Finder -> FITS round trip -- and that is exactly the
+          # silent-skip failure this job exists to catch (L-20).
+          #
+          # Under -q the collector prints one "<file>: <count>" line per file,
+          # so the counts are summed; taking the last line reports only the last
+          # file.
+          python -m pytest -m needs_astropy --collect-only -q \
+            | tee collected.txt
+          collected="$(awk -F': ' '/^[^ ]+: [0-9]+$/ { total += $NF } END { print total+0 }' collected.txt)"
+          modules="$(grep -cE '^[^ ]+: [0-9]+$' collected.txt || true)"
+          echo "collected: $collected across $modules modules"
+          case "$collected" in
+            ''|*[!0-9]*)
+              echo "::error::could not determine the collected test count"
+              exit 1
+              ;;
+          esac
+          if [ "$collected" -lt 75 ]; then
+            echo "::error::expected at least 75 astropy-backed tests, collected $collected"
+            exit 1
+          fi
+          if [ "$modules" -lt 3 ]; then
+            echo "::error::discovery found only $modules modules; the conftest marker is broken"
+            exit 1
+          fi
+
+          python -m pytest -m needs_astropy -rs --no-header \
+            | tee catalogue-report.txt
+
+          # A skip here means astropy is missing, which is exactly the silent
+          # failure this job exists to catch.
+          if grep -qiE '[0-9]+ skipped' catalogue-report.txt; then
+            echo "::error::astropy-backed tests were skipped; astropy is meant to be present"
+            grep -E '^SKIPPED|skipped' catalogue-report.txt || true
+            exit 1
+          fi
+          grep -E 'passed|failed' catalogue-report.txt | tail -1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalogue-test-report
+          path: catalogue-report.txt
+
+  backend-acceptance:
+    # The STABLE reference for backend agreement (PI ruling N62).
+    #
+    # The compiled backend was refused registration on Linux once, and the
+    # numbers moved between runs with no change to this repository -- numpy and
+    # scipy float in the matrix, and the agreement gate compares libcerf against
+    # scipy's wofz, so the reference itself was drifting under the gate.
+    #
+    # This job pins them. It is the job that decides whether the compiled
+    # backend is acceptable. The optional-extension matrix above stays UNPINNED
+    # on purpose, so a future numpy/scipy release that breaks the backend is
+    # still surfaced there rather than hidden by this pin.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: sudo apt-get update && sudo apt-get install -y libcerf-dev
+      - run: python -m pip install --upgrade pip
+
+      - name: Pin the numerical reference
+        run: python -m pip install "numpy==2.2.6" "scipy==1.15.3"
+
+      - run: pip install -e '.[dev]' --no-build-isolation || pip install -e '.[dev]'
+
+      - name: The pinned reference must not have been overridden
+        run: |
+          python - <<'PY'
+          import numpy, scipy
+          assert numpy.__version__ == "2.2.6", numpy.__version__
+          assert scipy.__version__ == "1.15.3", scipy.__version__
+          print("reference pinned:", numpy.__version__, scipy.__version__)
+          PY
+
+      - name: The compiled backend must be accepted against the pinned reference
+        run: |
+          python - <<'PY'
+          from gp_dla_finder.voigt import (
+              available_backends, backend_provenance, backend_rejections,
+          )
+          available = available_backends()
+          if "libcerf" not in available:
+              raise SystemExit(
+                  f"rejected against the pinned reference: "
+                  f"{dict(backend_rejections())}"
+              )
+          record = dict(backend_provenance("libcerf"))
+          for key, value in record.items():
+              if "difference" in key:
+                  print(f"{key}: {value:.6e}")
+          PY
+
+      - name: Worst-point report
+        run: python tools/backend_agreement_report.py --json backend-pinned.json
+
+      - name: End-to-end evidence parity on the compiled backend
+        # The gate compares PROFILES. This asserts the thing that actually
+        # matters downstream: that swapping the backend does not move the
+        # evidence beyond the recorded tolerance.
+        run: |
+          python -m pytest tests/test_voigt_backends.py tests/test_evidence.py \
+            -p no:cacheprovider -q
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-acceptance-pinned
+          path: backend-pinned.json
+          retention-days: 14
+
+  optional-extension:
+    # PI increment-8 priority 1: a normal install must ATTEMPT to compile the
+    # libcerf Voigt backend and must SURVIVE not being able to. Both outcomes are
+    # tested, on both supported operating systems, and each asserts which
+    # backends the resulting installation actually has -- because "it installed"
+    # is not the claim; "it installed and reports honestly what it can do" is.
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS runners bill at 10x. The optional-extension check is about
+        # build behaviour, not platform science, so Linux carries it on every
+        # push and macOS runs on demand and weekly.
+        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        libcerf: [present, absent]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install libcerf
+        if: matrix.libcerf == 'present'
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y libcerf-dev
+          else
+            brew install libcerf
+          fi
+
+      - name: Diagnose libcerf detection before installing
+        shell: bash
+        run: |
+          set -euo pipefail
+          # setup.py imports setuptools, which Python 3.12 no longer bundles, so
+          # this diagnostic has to provide its own copy. It is a build-time tool
+          # and installing it here does not affect what the install under test
+          # resolves in its isolated build environment.
+          python -m pip install --quiet "setuptools>=77"
+          python - <<'PY'
+          import importlib.util, sys
+          sys.argv = ["setup.py", "--version"]
+          spec = importlib.util.spec_from_file_location("gpdlf_setup", "setup.py")
+          module = importlib.util.module_from_spec(spec)
+          try:
+              spec.loader.exec_module(module)
+          except SystemExit:
+              pass
+          print("candidate prefixes:", module._CANDIDATE_PREFIXES)
+          found = module._find_libcerf()
+          print("detected libcerf:", found)
+          if found:
+              print("library dirs searched:")
+              from pathlib import Path
+              for prefix in module._CANDIDATE_PREFIXES:
+                  if prefix and (Path(prefix) / "include" / "cerf.h").is_file():
+                      print(" ", prefix, "->", module._library_dirs(Path(prefix)))
+          print("extensions offered:", module._extensions())
+          PY
+
+      - run: pip install -e '.[dev]' --verbose 2>&1 | grep -iE "cerf|extension|gcc|error" | head -30 || true
+
+      - name: Report what this installation built
+        run: |
+          python - <<'PY'
+          from gp_dla_finder.voigt import available_backends, backend_provenance
+          print("backends:", available_backends())
+          for name in available_backends():
+              print(" ", dict(backend_provenance(name)))
+          PY
+
+      - name: Where do the backends actually disagree?
+        if: matrix.libcerf == 'present'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Runs whether or not the backend registered -- the report falls back
+          # to the extension directly. The gate's floor is chosen from these
+          # numbers (PI ruling N62), so they are measured on every platform
+          # rather than assumed from the developer's laptop.
+          python tools/backend_agreement_report.py \
+            --json backend-agreement-${{ matrix.os }}.json
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.libcerf == 'present'
+        with:
+          name: backend-agreement-${{ matrix.os }}
+          path: backend-agreement-${{ matrix.os }}.json
+          retention-days: 14
+
+      - name: With libcerf, the compiled backend must be present and agree
+        if: matrix.libcerf == 'present'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          import traceback
+
+          from gp_dla_finder.voigt import available_backends, backend_provenance
+
+          available = available_backends()
+          if "libcerf" not in available:
+              # Say WHICH failure this is. The bare assertion reported "no
+              # compiled backend was built" even when the build log showed gcc
+              # compiling and linking it, which made an intermittent failure
+              # undiagnosable. There are three distinct causes and they need
+              # different fixes.
+              print("::group::why is there no libcerf backend?")
+              spec = importlib.util.find_spec("gp_dla_finder._voigt_ext")
+              print("extension module found:", spec is not None)
+              if spec is not None:
+                  print("  origin:", spec.origin)
+                  try:
+                      import gp_dla_finder._voigt_ext as ext
+
+                      print("  imported OK; FADDEEVA_SOURCE =",
+                            getattr(ext, "FADDEEVA_SOURCE", "?"))
+                  except Exception:
+                      print("  import FAILED:")
+                      traceback.print_exc()
+              from gp_dla_finder.voigt import backend_rejections
+
+              print("recorded rejections:", dict(backend_rejections()) or "none")
+              print("::endgroup::")
+              raise SystemExit(
+                  f"libcerf installed but no compiled backend registered: {available}"
+              )
+
+          record = dict(backend_provenance("libcerf"))
+          assert record["compiled"] is True
+          # Registration is conditional on measured agreement, so this is the
+          # number the install itself verified.
+          print("measured agreement with numpy:",
+                record["max_absolute_difference_from_numpy"])
+          PY
+          pytest -q tests/test_voigt_backends.py
+
+      - name: Without libcerf, the install must still succeed on NumPy alone
+        if: matrix.libcerf == 'absent'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from gp_dla_finder.voigt import available_backends
+          available = available_backends()
+          assert available == ("numpy",), (
+              f"expected the NumPy backend alone without libcerf, got {available}"
+          )
+          PY
+          pytest -q
+
+      - name: A broken compiler must not fail the install either
+        if: matrix.libcerf == 'present'
+        shell: bash
+        run: |
+          # The failure mode Cython's cythonize() reintroduced by dropping
+          # optional=True: point CC at something that cannot compile and require
+          # the install to degrade to the NumPy backend rather than abort.
+          #
+          # This check was previously unsound in three ways and all three are
+          # fixed here (PI ruling, increment-8 correction 2):
+          #   * it piped pip into `tail` without `pipefail`, so a failed install
+          #     exited 0 and the step passed while proving nothing;
+          #   * it reinstalled editable over the SAME tree, where the extension
+          #     built by the previous step was still present and importable, so
+          #     "the backend still works" was guaranteed regardless;
+          #   * it never asserted which backends the result actually had.
+          set -euo pipefail
+
+          # Clean isolated tree, with no artefact from the earlier build. A copy
+          # rather than a fresh clone, so this tests the tree that was actually
+          # checked out; the artefacts are then removed explicitly and printed,
+          # so the cleanup is visible in the log rather than assumed.
+          rm -rf /tmp/gpdlf-brokencc
+          cp -a "$PWD" /tmp/gpdlf-brokencc
+          rm -rf /tmp/gpdlf-brokencc/.git /tmp/gpdlf-brokencc/build \
+                 /tmp/gpdlf-brokencc/src/*.egg-info
+          find /tmp/gpdlf-brokencc \
+            \( -name '*.so' -o -name '_voigt_ext.c' -o -name '_build_info.py' \) \
+            -print -delete
+
+          # Clean isolated environment, so nothing is inherited from this job.
+          python -m venv /tmp/gpdlf-brokencc-venv
+          /tmp/gpdlf-brokencc-venv/bin/python -m pip install --quiet --upgrade pip
+
+          # The install itself must succeed despite the unusable compiler.
+          CC=/bin/false /tmp/gpdlf-brokencc-venv/bin/python -m pip install \
+            --no-cache-dir /tmp/gpdlf-brokencc
+          echo "install exit status: $?"
+
+          # And the result must be honest about what it has.
+          /tmp/gpdlf-brokencc-venv/bin/python - <<'PY'
+          from gp_dla_finder.voigt import available_backends, backend_rejections
+          available = available_backends()
+          print("backends after a failed compile:", available)
+          print("rejections:", dict(backend_rejections()))
+          assert available == ("numpy",), (
+              f"expected the NumPy backend alone after the extension failed to "
+              f"compile, got {available}"
+          )
+          PY
+
+          rm -rf /tmp/gpdlf-brokencc /tmp/gpdlf-brokencc-venv

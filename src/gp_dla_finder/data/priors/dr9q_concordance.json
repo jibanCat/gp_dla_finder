@@ -1,0 +1,36 @@
+{
+  "name": "dr9q_concordance",
+  "schema_version": 1,
+  "created_utc": "2026-08-19T04:02:55+00:00",
+  "description": "Absorber-existence prior as an exact step table: sorted quasar redshifts and the cumulative count of those hosting a DLA.",
+  "sources": [
+    {
+      "role": "quasar catalogue",
+      "filename": "catalog.mat",
+      "sha256": "35ae81f16ae56efd9af9c981450d77a2d8c7fdee3738eb986df4e32bb643f645",
+      "origin": "https://github.com/jibanCat/gp_dr12_trained",
+      "licence": "MIT",
+      "attribution": "Ming-Feng Ho, gp_dr12_trained"
+    },
+    {
+      "role": "DLA / line-of-sight catalogue",
+      "filename": "BOSSLyaDR9_cat.txt",
+      "sha256": "a5aeb90dbf97b9974cc5f2c962f17eda5d5e1037150ee3eeba638cdc3415390e",
+      "origin": "http://data.sdss3.org/sas/dr9/boss/lya/cat/BOSSLyaDR9_cat.txt",
+      "licence": "public SDSS-III DR9 data",
+      "attribution": "SDSS-III BOSS DR9 Lyman-alpha forest catalogue"
+    }
+  ],
+  "selection": "in_dr9 & los_ind & (filter_flags == 0), then DLAs with lya*(1+z_dla) < lyman_limit*(1+z_qso) removed",
+  "n_sightlines": 53322,
+  "n_with_absorber": 5633,
+  "z_qso_min": 2.1503090858459473,
+  "z_qso_max": 5.422865867614746,
+  "equivalence_proof": {
+    "method": "compared against a brute-force evaluation of the definition at every breakpoint, the floats either side of each breakpoint, the breakpoints of the shifted comparison, and a dense sweep",
+    "n_probe_redshifts": 337531,
+    "result": "exact"
+  },
+  "builder": "tools/build_prior_table.py",
+  "sha256": "8ed86f9d5cc9cb751a29eefd3a9e8c2d123ca9ccd8ce03740860220b53601d25"
+}

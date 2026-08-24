@@ -1,0 +1,91 @@
+cff-version: 1.2.0
+title: gp_dla_finder
+message: >-
+  If you use this software, please cite the method papers below. A software
+  citation is in preparation; until it exists, cite the method papers and note
+  the software version used.
+type: software
+authors:
+  - given-names: Ming-Feng
+    family-names: Ho
+    email: mfho@umich.edu
+    orcid: "https://orcid.org/0000-0002-4457-890X"
+    affiliation: >-
+      Leinweber Center for Theoretical Physics, University of Michigan
+repository-code: "https://github.com/jibanCat/gp_dla_finder"
+abstract: >-
+  Gaussian-process Bayesian detection of damped Lyman-alpha absorbers in quasar
+  spectra. Packages the inference core of the DESI GP-DLA finder for use on a
+  single spectrum, independently of any survey production pipeline. Lower
+  column-density absorbers are included in the inference prior for
+  regularization, but are not independently validated catalogue targets.
+keywords:
+  - astronomy
+  - cosmology
+  - quasar
+  - damped Lyman-alpha
+  - Gaussian process
+  - spectroscopy
+license: MIT
+version: 0.1.0rc2
+references:
+  # --- method papers -------------------------------------------------------
+  - type: article
+    title: Detecting Damped Lyman-alpha Absorbers with Gaussian Processes
+    authors:
+      - family-names: Garnett
+        given-names: Roman
+      - family-names: Ho
+        given-names: Shirley
+      - family-names: Bird
+        given-names: Simeon
+      - family-names: Schneider
+        given-names: Jeff
+    journal: Monthly Notices of the Royal Astronomical Society
+    year: 2017
+    doi: 10.1093/mnras/stx1958
+    url: "https://arxiv.org/abs/1605.04460"
+  - type: article
+    title: >-
+      Detecting Multiple DLAs per Spectrum in SDSS DR12 with Gaussian Processes
+    authors:
+      - family-names: Ho
+        given-names: Ming-Feng
+      - family-names: Bird
+        given-names: Simeon
+      - family-names: Garnett
+        given-names: Roman
+    journal: Monthly Notices of the Royal Astronomical Society
+    year: 2020
+    doi: 10.1093/mnras/staa1806
+    url: "https://arxiv.org/abs/2003.11036"
+  - type: article
+    title: >-
+      Damped Lyman-alpha Absorbers from Sloan Digital Sky Survey DR16Q with
+      Gaussian processes
+    authors:
+      - family-names: Ho
+        given-names: Ming-Feng
+      - family-names: Bird
+        given-names: Simeon
+      - family-names: Garnett
+        given-names: Roman
+    journal: Monthly Notices of the Royal Astronomical Society
+    year: 2021
+    doi: 10.1093/mnras/stab2169
+    url: "https://arxiv.org/abs/2103.10964"
+  # --- provenance of the bundled default trained model ---------------------
+  # Preprint as of 2026-08-18, submitted to A&A. No journal DOI has been
+  # invented; update this entry if a published version appears.
+  - type: article
+    title: >-
+      CoLoRe-2LPT: Lyman-alpha mock catalogues for the validation of DESI
+      cosmological analyses
+    authors:
+      - family-names: Ruiz-Herrera Bernal
+        given-names: M. F.
+    year: 2026
+    url: "https://arxiv.org/abs/2607.27412"
+    notes: >-
+      Describes the Lyman-alpha mock used to train the bundled default model.
+      Cite when using that model. See NOTICE.md.

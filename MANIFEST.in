@@ -1,0 +1,30 @@
+# Source distribution contents.
+#
+# tools/ ships because the reproducibility claim depends on the asset builders
+# being available to rerun; tests/ ships so an installation can be verified
+# where it is installed. Build artefacts of the optional extension never ship.
+
+include LICENSE
+include NOTICE.md
+include CITATION.cff
+include README.md
+include CHANGELOG.md
+include setup.py
+
+recursive-include src *.py *.pyx *.npz *.json
+recursive-include tests *.py
+recursive-include tools *.py
+recursive-include parity Dockerfile requirements.lock README.md expected_skips.txt
+
+exclude src/gp_dla_finder/NOTICE.md
+global-exclude *.pyc *.so *.dylib *.pyd __pycache__/*
+# The Cython-generated C file is a BUILD ARTIFACT, not source. It exists in a
+# working tree only after someone has compiled the extension, so shipping it
+# would make the sdist depend on whether the person building it happened to
+# have done that. Worse, Cython embeds the paths of the headers it saw --
+# including the temporary build environment -- so the file carries build-machine
+# paths and makes the sdist non-reproducible.
+#
+# Nothing is lost: Cython is a declared build requirement, so any PEP 517 build
+# of this sdist regenerates the .c from the .pyx.
+exclude src/gp_dla_finder/_voigt_ext.c

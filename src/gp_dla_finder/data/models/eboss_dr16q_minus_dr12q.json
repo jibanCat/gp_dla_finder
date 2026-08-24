@@ -1,0 +1,89 @@
+{
+  "name": "eboss_dr16q_minus_dr12q",
+  "schema_version": 1,
+  "created_utc": "2026-08-19T15:10:28+00:00",
+  "source": {
+    "filename": "learned_qso_model_lyseries_variance_wmu_boss_dr16q_minus_dr12q_gp_851-1421.mat",
+    "sha256": "8e2f0f578e9e923b2404d953f5cd507b1158afc856cc4304d7447e9a99f65b06",
+    "size_bytes": 910393,
+    "format": "matlab-v7.3",
+    "training_attrs": {},
+    "training_attrs_redacted": {},
+    "datasets_unused": [
+      "#refs#",
+      "initial_M",
+      "initial_beta",
+      "initial_log_c_0",
+      "initial_log_omega",
+      "initial_tau_0",
+      "log_likelihood",
+      "max_noise_variance",
+      "minFunc_options",
+      "minFunc_output",
+      "train_ind",
+      "training_release"
+    ],
+    "normalization_embedded": false
+  },
+  "model": {
+    "rank": 20,
+    "rest_wavelength_min": 850.75,
+    "rest_wavelength_max": 1420.75,
+    "rest_wavelength_count": 2281,
+    "normalization_min_lambda": 1425.0,
+    "normalization_max_lambda": 1475.0,
+    "learned_tau_0": 0.00011909196694127503,
+    "learned_beta": 5.153660330786272,
+    "learned_c_0": 0.14598947100436402,
+    "normalization_provenance": {
+      "embedded_in_source": false,
+      "stamped_at_conversion": true,
+      "value": [
+        1425.0,
+        1475.0
+      ],
+      "attributed_to": "Supplied at conversion time as the historical compatibility convention this legacy eBOSS/DR16Q model was fitted under. NOT extracted from the artifact, which embeds no normalisation metadata.",
+      "note": "The source artifact records no normalisation metadata. This band was supplied at conversion time from the stated authority and was NOT extracted from the file."
+    }
+  },
+  "conversion": {
+    "rule": "float32 storage only where a per-element float64->float32->float64 round trip is exact; verified at write time and re-verified by tests/test_model_assets.py",
+    "arrays": {
+      "rest_wavelengths": {
+        "shape": [
+          2281
+        ],
+        "stored_dtype": "float32",
+        "float32_lossless": true,
+        "sha256_float64": "0bb8ae6e3679df2004e0a97e0c2256e84a635dabaa87d17358cf3e4e9580737e"
+      },
+      "mu": {
+        "shape": [
+          2281
+        ],
+        "stored_dtype": "float64",
+        "float32_lossless": false,
+        "sha256_float64": "fd9b5a5aca6d1abf6151df4445bb1791c73a7627a8d77fce941546a78657b9ce"
+      },
+      "M": {
+        "shape": [
+          2281,
+          20
+        ],
+        "stored_dtype": "float64",
+        "float32_lossless": false,
+        "sha256_float64": "fee82b511c267a1595be03f696a339bc5a2665fb11d61abc0e0a1c19ff8f27d2"
+      },
+      "log_omega": {
+        "shape": [
+          2281
+        ],
+        "stored_dtype": "float64",
+        "float32_lossless": false,
+        "sha256_float64": "8cd1cac396e8cafad4a44eed775447b5c3c8146f6464be385309175826d3d00b"
+      }
+    },
+    "npz_sha256": "7273a286585a4837daa06707111a828e5fcb8157ec37dec7119993390771f82c"
+  },
+  "notes": "Legacy SDSS eBOSS/DR16Q-trained GP model from github.com/jibanCat/gp_dr12_trained (MIT, commit b9f222f7). Supports the legacy SDSS/eBOSS inference path."
+}

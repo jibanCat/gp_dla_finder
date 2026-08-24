@@ -1,0 +1,92 @@
+{
+  "name": "phase2_2lpt_loa124_nohcd_nobal_wide_m",
+  "schema_version": 1,
+  "created_utc": "2026-08-19T15:11:59+00:00",
+  "source": {
+    "filename": "phase2_result.h5",
+    "sha256": "5e7a2691613f69da38ec828235d94a360ce6772363067a1bee017caecf232856",
+    "size_bytes": 2961352,
+    "format": "desi-h5",
+    "training_attrs": {
+      "lr": 0.005,
+      "n_iters": 1500,
+      "n_spectra": 203984,
+      "vectorized": 1
+    },
+    "training_attrs_redacted": {
+      "preload_source": {
+        "reason": "path-like value withheld",
+        "training_run": "2lpt_loa124_nohcd_nobal_wide_v2_1778186324"
+      }
+    },
+    "datasets_unused": [
+      "initial_M",
+      "initial_log_beta",
+      "initial_log_c_0",
+      "initial_log_omega",
+      "initial_log_tau_0",
+      "log_beta_history",
+      "log_c_0_history",
+      "log_tau_0_history",
+      "loss_history",
+      "max_noise_variance"
+    ],
+    "normalization_embedded": true
+  },
+  "model": {
+    "rank": 30,
+    "rest_wavelength_min": 850.75,
+    "rest_wavelength_max": 1700.0,
+    "rest_wavelength_count": 5662,
+    "normalization_min_lambda": 1425.0,
+    "normalization_max_lambda": 1475.0,
+    "learned_tau_0": 0.0017514520955600522,
+    "learned_beta": 2.9694496757152,
+    "learned_c_0": 0.0235742712404856,
+    "normalization_provenance": {
+      "embedded_in_source": true,
+      "stamped_at_conversion": false,
+      "note": "Read from the trained artifact's own metadata."
+    }
+  },
+  "conversion": {
+    "rule": "float32 storage only where a per-element float64->float32->float64 round trip is exact; verified at write time and re-verified by tests/test_model_assets.py",
+    "arrays": {
+      "rest_wavelengths": {
+        "shape": [
+          5662
+        ],
+        "stored_dtype": "float32",
+        "float32_lossless": true,
+        "sha256_float64": "edb2b57606fbd5e9d4f0abbb904c8bea7cbddf3b1b66ffb06efad1c0882db590"
+      },
+      "mu": {
+        "shape": [
+          5662
+        ],
+        "stored_dtype": "float32",
+        "float32_lossless": true,
+        "sha256_float64": "09c1970aedec285d4e19b2b67a5059d68dcff405522abe53c56c4a7efd86c977"
+      },
+      "M": {
+        "shape": [
+          5662,
+          30
+        ],
+        "stored_dtype": "float32",
+        "float32_lossless": true,
+        "sha256_float64": "49180b6ba31f7c4db9c226875515b00888582688a1312f32e7634d7dd450c6f2"
+      },
+      "log_omega": {
+        "shape": [
+          5662
+        ],
+        "stored_dtype": "float32",
+        "float32_lossless": true,
+        "sha256_float64": "aed56b39365048722a24114e8cd829a171c5fca6f6f60d8460552db2be7ea47f"
+      }
+    },
+    "npz_sha256": "80e7f1d9437295320924589cca86d6aeb002565b3e123d9b8004de2ef7e4f34f"
+  },
+  "notes": "Deployed DESI Y3 production model: the LEARNED_FILE named by every packaged BASELINE.env for the mock and real-data catalogue runs. Trained on the 2LPT-0 (loa-124) mock, HCD-free and BAL-free variant. NOTE: 2LPT-0 is also the calibration mock, so finder performance quoted on it is in-sample. Training spectra are NOT redistributable and are not included in this package."
+}

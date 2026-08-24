@@ -1,0 +1,185 @@
+name: canonical-parity
+
+# Formal bitwise parity claims are made only inside the pinned linux/amd64
+# container (PI rulings N24, N29, N30).
+#
+#   container-build    builds the image and runs the offline suite inside it.
+#   canonical-parity   additionally checks out the PUBLIC reference implementation
+#                      at a pinned commit and runs the comparison tests with the
+#                      reference mounted READ-ONLY.
+#
+# The parity job fails if no comparison actually ran: a green job containing no
+# comparison is not a parity result.
+#
+# ---------------------------------------------------------------------------
+# NO-WRITE BOUNDARY (PI ruling N30)
+#
+# The reference repository is an INPUT ONLY. This workflow must never edit,
+# commit, push, tag, open or modify a pull request/issue/release/setting, upload
+# artifacts to it, or use any write-capable credential against it.
+#
+# What is mechanically enforced, stated precisely (adopted increment-7 review
+# correction 3). `actions/checkout` may still use the job's automatic
+# `GITHUB_TOKEN` for the fetch even with `persist-credentials: false`, so this is
+# NOT an anonymous checkout and must not be described as one. The enforceable
+# claims are:
+#
+#   * NO WRITE-CAPABLE CREDENTIAL. Workflow permissions are `contents: read`, so
+#     the automatic token cannot write to any repository, and no `secrets.*` is
+#     referenced anywhere in this file.
+#   * NO PERSISTED CREDENTIAL. `persist-credentials: false` leaves no usable
+#     credential in the checkout's git config after the fetch.
+#   * NO WRITE PATH. The checkout is a disposable directory mounted `:ro` into
+#     the container, and a step verifies the working tree is unchanged after the
+#     run.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The public reference implementation, pinned to an immutable commit. A moving
+  # default branch must not silently redefine the v0.1 parity baseline.
+  REFERENCE_REPO: jibanCat/desi_gpy_dla_detection
+  REFERENCE_COMMIT: d5b306e6e2c8d89cdb38a6201b690557f2798f28
+  BASE_IMAGE_DIGEST: sha256:2407c61b1a18067393fecd8a22cf6fceede893b6aaca817bf9fbfe65e33614a3
+
+jobs:
+  container-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the canonical image
+        run: |
+          docker build --platform linux/amd64 \
+            -f parity/Dockerfile -t gpdlf-parity:${{ github.sha }} .
+
+      - name: Record the built image identity
+        run: |
+          docker image inspect gpdlf-parity:${{ github.sha }} \
+            --format '{{.Id}}' | tee built-image-id.txt
+          docker run --rm --platform linux/amd64 gpdlf-parity:${{ github.sha }} \
+            python -c "import sys, numpy, scipy; print(f'python {sys.version.split()[0]} numpy {numpy.__version__} scipy {scipy.__version__}')" \
+            | tee -a built-image-id.txt
+
+      - name: Offline suite inside the canonical environment
+        run: |
+          docker run --rm --platform linux/amd64 gpdlf-parity:${{ github.sha }} \
+            python -m pytest -q -m "not slow"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canonical-environment-record
+          path: |
+            built-image-id.txt
+            parity/requirements.lock
+
+  canonical-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: package
+
+      # Public repository, read-only use. The fetch may use the job's automatic
+      # GITHUB_TOKEN, which under `permissions: contents: read` is not
+      # write-capable; `persist-credentials: false` leaves nothing behind.
+      - name: Check out the public reference at the pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REFERENCE_REPO }}
+          ref: ${{ env.REFERENCE_COMMIT }}
+          path: reference
+          persist-credentials: false
+
+      - name: Confirm the reference is at the pinned commit
+        run: |
+          actual="$(git -C reference rev-parse HEAD)"
+          echo "reference commit: $actual"
+          if [ "$actual" != "${{ env.REFERENCE_COMMIT }}" ]; then
+            echo "::error::reference is at $actual, expected ${{ env.REFERENCE_COMMIT }}"
+            exit 1
+          fi
+
+      - name: Build the canonical image
+        working-directory: package
+        run: |
+          docker build --platform linux/amd64 \
+            -f parity/Dockerfile -t gpdlf-parity:${{ github.sha }} .
+
+      - name: Run the comparison, reference mounted read-only
+        run: |
+          set -o pipefail
+          docker run --rm --platform linux/amd64 \
+            -v "${{ github.workspace }}/reference:/ref:ro" \
+            -e GP_DLA_FINDER_REFERENCE=/ref \
+            gpdlf-parity:${{ github.sha }} \
+            python -m pytest -m "needs_reference" -rs --no-header \
+            | tee parity-report.txt
+
+      - name: Report scope, and check the skips against the reviewed contract
+        working-directory: package
+        run: |
+          # "At least one test passed" was not enough. It passed while the
+          # legacy-writer parity tests skipped in this job AND in catalogue-io,
+          # so they ran nowhere for an entire increment. Counting skips would
+          # not have caught it either -- the count was right and the wrong tests
+          # were skipping (PI ruling N87).
+          #
+          # parity/expected_skips.txt names which test may skip and why. The
+          # checker fails on a new skip, a changed reason, a changed count, or
+          # an entry that no longer matches anything -- which is what a rename
+          # or a deletion looks like.
+          if ! grep -qE "[1-9][0-9]* passed" ../parity-report.txt; then
+            echo "::error::parity job ran no comparison tests"
+            exit 1
+          fi
+          echo "--- comparison scope ---"
+          grep -E "passed|failed|skipped" ../parity-report.txt | tail -1
+          # python3, not python: this job has no actions/setup-python, and the
+          # runner image provides python3 rather than a bare `python`. The
+          # checker is standard library only, so it needs nothing installed.
+          python3 tools/check_parity_skips.py \
+            ../parity-report.txt parity/expected_skips.txt
+
+      - name: Verify the reference tree was not modified
+        if: always()
+        run: |
+          # The no-write boundary, checked rather than asserted.
+          if [ -n "$(git -C reference status --porcelain)" ]; then
+            echo "::error::the reference working tree was modified by this run"
+            git -C reference status --porcelain
+            exit 1
+          fi
+          echo "reference tree clean: no writes occurred"
+
+      - name: Record provenance for this parity run
+        if: always()
+        run: |
+          {
+            echo ""
+            echo "--- canonical parity provenance ---"
+            echo "package_commit=${{ github.sha }}"
+            echo "reference_repo=${{ env.REFERENCE_REPO }} (public; read-only use, no write-capable or persisted credential)"
+            echo "reference_commit=${{ env.REFERENCE_COMMIT }}"
+            echo "base_image=python@${{ env.BASE_IMAGE_DIGEST }}"
+            docker image inspect gpdlf-parity:${{ github.sha }} \
+              --format 'built_image_id={{.Id}}' || true
+            echo "command=python -m pytest -m needs_reference"
+          } | tee -a parity-report.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canonical-parity-report
+          path: parity-report.txt

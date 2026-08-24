@@ -1,0 +1,29 @@
+# Skips the canonical-parity job is allowed to have.
+#
+# The job runs `pytest -m needs_reference` inside the pinned container, which
+# has the read-only reference checkout and deliberately does NOT have astropy.
+# Some tests therefore cannot run there, and that is fine -- but only the ones
+# listed here, only for the reason given, and only in the stated number.
+#
+# This file is the reviewed contract. The job fails if a new
+# test skips, if a listed test skips for a different reason, or if a listed
+# entry stops matching at all -- the last case catches a test that was renamed
+# or deleted without anyone revisiting this list.
+#
+# Format:  <count> | <test file> | <substring the skip reason must contain>
+# Blank lines and lines starting with '#' are ignored.
+#
+# ---------------------------------------------------------------------------
+# Needs astropy, which the pinned parity image does not carry. These are FITS
+# round-trip tests, and they run in the `catalogue-io` job instead -- which
+# enforces ZERO skips, so they cannot quietly stop running there either.
+2 | tests/test_catalogue.py       | catalogue I/O needs astropy
+1 | tests/test_finder.py          | catalogue I/O needs astropy
+1 | tests/test_examples.py        | the examples write FITS
+
+# Needs source catalogues that are not redistributable, so they are absent from
+# every environment including this one.
+1 | tests/test_prior.py           | GP_DLA_FINDER_PRIOR_SOURCES
+
+# Needs git inside the container, which the pinned image does not ship.
+1 | tests/test_reference_parity.py | needs git

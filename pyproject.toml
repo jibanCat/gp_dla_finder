@@ -1,0 +1,150 @@
+[build-system]
+# setuptools rather than hatchling, for one reason: the optional libcerf Voigt
+# extension. `Extension(optional=True)` is the standard, well-tested mechanism
+# for "try to compile, carry on if you cannot", and it behaves correctly across
+# the compilers and platforms this package claims to support. See setup.py.
+#
+# numpy and Cython are build-time requirements only. They are used solely to
+# build the optional extension; an install that skips it still gets a working
+# package on the NumPy backend, which is the official one.
+# setuptools>=77 for PEP 639 `license = "MIT"` plus `license-files`.
+requires = ["setuptools>=77", "numpy>=1.24,<3", "Cython>=3.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gp_dla_finder"
+version = "0.1.0rc2"
+description = "Gaussian-process Bayesian detection of damped Lyman-alpha absorbers in quasar spectra"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Ming-Feng Ho", email = "mfho@umich.edu" },
+]
+keywords = [
+    "astronomy",
+    "cosmology",
+    "quasar",
+    "damped Lyman-alpha",
+    "DLA",
+    "Gaussian process",
+    "spectroscopy",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    # No license classifier: superseded by the PEP 639 `license` expression above.
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+# The inference core is deliberately numpy + scipy only. A default install must not
+# require a compiler or any survey-specific stack.
+dependencies = [
+    # Broad MAJOR-version ceilings only. The point is to stop an
+    # untested future major version installing silently, not to pin minors --
+    # a narrow pin would date the package and fight every downstream solver.
+    "numpy>=1.24,<3",
+    "scipy>=1.10,<2",
+]
+
+[project.optional-dependencies]
+# Readers for the original MATLAB v7.3 / HDF5 trained-model and sample files.
+legacy = ["h5py>=3.8"]
+# Survey-specific spectrum readers. Never required by the inference core.
+desi = ["astropy>=5.0", "fitsio>=1.1"]
+sdss = ["astropy>=5.0"]
+plot = ["matplotlib>=3.6"]
+# Optional BLAS thread diagnostics. Never part of the inference
+# core: without it the package runs normally and simply cannot offer the
+# one-time thread advisory. Lower bound 3.1.0 is the first release whose
+# threadpool_info() reports BOTH `threading_layer` and `architecture`, and the
+# diagnostic record retains both. BSD-3-Clause, no transitive dependencies.
+performance = ["threadpoolctl>=3.1.0"]
+dev = [
+    "gp_dla_finder[legacy]",
+    # Pinned into the developer/benchmark environment so a benchmark can never
+    # claim complete thread-pool identification while reporting
+    # "threadpoolctl not installed".
+    "gp_dla_finder[performance]",
+    # tomllib is stdlib from 3.11; tomli is the same parser under its earlier
+    # name, needed so the release-version gate and its tests run on 3.10.
+    "tomli>=2.0; python_version<'3.11'",
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.6",
+    "pre-commit>=3.5",
+]
+docs = [
+    "sphinx>=7.2",
+    "myst-nb>=1.0",
+    "pydata-sphinx-theme>=0.15",
+    "sphinx-copybutton>=0.5",
+    "matplotlib>=3.6",
+    # Regenerates the theme-aware logo variants from the PI-supplied artwork.
+    "pillow>=10.0",
+]
+
+[project.urls]
+Repository = "https://github.com/jibanCat/gp_dla_finder"
+Issues = "https://github.com/jibanCat/gp_dla_finder/issues"
+Changelog = "https://github.com/jibanCat/gp_dla_finder/blob/main/CHANGELOG.md"
+# The repository's own docs directory, deliberately: no hosted documentation
+# project exists yet, and pointing at a URL that does not resolve is worse than
+# pointing at the source the site is built from. Repoint this when the hosted
+# site is live.
+Documentation = "https://github.com/jibanCat/gp_dla_finder/tree/main/docs"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+# Asset provenance and redistribution terms must travel with the distribution,
+# not only with the source tree. NOTICE.md
+# stays canonical at the repository root and is copied into the package at build
+# time by the build_py hook in setup.py.
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"gp_dla_finder" = ["NOTICE.md", "*.pyx"]
+"gp_dla_finder.data.models" = ["*.npz", "*.json"]
+"gp_dla_finder.data.priors" = ["*.npz", "*.json"]
+"gp_dla_finder.data.samples" = ["*.npz", "*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# Repo root on the path so tests can import the asset builders under tools/,
+# which are shipped for reproducibility but are not part of the package.
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+markers = [
+    # Tests needing assets or hardware that cannot ship with the package.
+    "needs_reference: requires the reference implementation (desi_gpy_dla_detection)",
+    "needs_private_data: requires non-redistributable data (mocks, survey catalogues)",
+    "slow: takes more than a few seconds",
+    # Applied automatically by tests/conftest.py to any module that imports
+    # astropy -- do not add it by hand; see correction 8 / L-20.
+    "needs_astropy: module imports the optional astropy dependency",
+]
+filterwarnings = ["error::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "NPY"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B018"]
+
+[tool.coverage.run]
+source = ["gp_dla_finder"]
+branch = true

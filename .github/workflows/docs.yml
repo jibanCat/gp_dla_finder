@@ -1,0 +1,138 @@
+name: docs
+
+# Builds the documentation and keeps the "zero warnings" claim honest by putting
+# it under CI (PI ruling, increment-11 correction 4 and the documentation
+# workflow authorisation).
+#
+# ---------------------------------------------------------------------------
+# THIS WORKFLOW PUBLISHES NOTHING.
+#
+# No GitHub Pages deploy, no Read the Docs webhook, no PyPI, no artifact sent to
+# any public service. The built HTML is uploaded as a CI artifact for private
+# review only. Connecting a Read the Docs project, or publishing the docs
+# anywhere, is a separate PI decision.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+  push:
+    # Only when something the docs build actually reads changed. A source-only
+    # commit does not need a docs rebuild to prove anything.
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "NOTICE.md"
+      - "src/**"
+      - "tools/make_docs_figures.py"
+      - "tools/make_logo_variants.py"
+      - ".github/workflows/docs.yml"
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: python -m pip install --upgrade pip
+      - name: Install the package with its documented docs extra
+        run: pip install -e '.[docs]'
+
+      - name: The committed logo variants must match their generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Pixel comparison, not a byte comparison. JPEG decoding, LANCZOS
+          # resampling and PNG encoding all differ slightly between platforms and
+          # Pillow releases -- the first run of this job failed on Linux against
+          # files generated on macOS, which told us nothing about the artwork.
+          # What needs guarding is a hand-edited variant or a changed generator,
+          # and that shows up as a large pixel difference (PI ruling N51).
+          python tools/make_logo_variants.py --check
+
+      - name: The committed figures must match their generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The figures are COMPUTED from package code -- Voigt profiles, the
+          # real per-sample integrand, the real coarse-scan size. A committed
+          # figure that no longer matches the code is a false statement about
+          # the package, so it is regenerated and compared rather than trusted.
+          #
+          # The SVGs are NOT byte-compared: matplotlib's SVG output differs
+          # between platforms, and the first version of this step failed on
+          # Linux against correct files generated on macOS. What is compared is
+          # the DATA each figure plots, with a tolerance, plus the existence of
+          # every rendered variant. --check writes nothing.
+          python tools/make_docs_figures.py --check
+
+      - name: Build the documentation, warnings as errors
+        run: sphinx-build -W --keep-going -b html docs docs/_build/html
+
+      - name: Check internal links
+        # Internal links only. External link checking on a shared runner is
+        # flaky by nature and would make this job fail for reasons that have
+        # nothing to do with the documentation.
+        run: |
+          sphinx-build -b linkcheck -D linkcheck_ignore='https?://.*' \
+            docs docs/_build/linkcheck
+
+      - name: The documented API surface must actually import
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A docs page naming a module that cannot be imported renders as an
+          # empty section rather than an error, so check it directly.
+          python - <<'PY'
+          import importlib
+
+          modules = [
+              "gp_dla_finder.config",
+              "gp_dla_finder.voigt",
+              "gp_dla_finder.model",
+              "gp_dla_finder.prior",
+              "gp_dla_finder.samples",
+              "gp_dla_finder.quality",
+              "gp_dla_finder.compat",
+              "gp_dla_finder.performance",
+              "gp_dla_finder.errors",
+              "gp_dla_finder.gp.spectrum",
+              "gp_dla_finder.gp.evidence",
+              "gp_dla_finder.gp.likelihood",
+              "gp_dla_finder.catalogue",
+          ]
+          for name in modules:
+              importlib.import_module(name)
+          print(f"imported {len(modules)} documented modules")
+          PY
+
+      - name: Confirm the build produced pages, not an empty tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          count="$(find docs/_build/html -name '*.html' | wc -l)"
+          echo "built $count HTML pages"
+          test "$count" -ge 8
+          test -f docs/_build/html/index.html
+          # The theme-aware logo must have been copied into the output.
+          test -f docs/_build/html/_static/logo-light.png
+          test -f docs/_build/html/_static/logo-dark.png
+
+      - name: Upload the built HTML for private review
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-html
+          path: docs/_build/html
+          retention-days: 14

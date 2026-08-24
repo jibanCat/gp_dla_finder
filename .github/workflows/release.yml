@@ -1,0 +1,350 @@
+# Publish a release candidate to TestPyPI.
+#
+# MANUAL ONLY, and TestPyPI only. There is deliberately no production-PyPI path
+# in this file: promoting to PyPI is a separate, separately approved change, and
+# a production route reachable from here would be one misclick away from an
+# irreversible upload.
+#
+# The shape matters more than the steps. Three jobs, and the privileged one is
+# the smallest:
+#
+#   build    no id-token. Builds, checks, and hashes the distributions.
+#   publish  id-token: write. Downloads what `build` produced and uploads it.
+#            It necessarily runs the pinned artifact action, two checksum
+#            commands and the pinned PyPA publishing action -- what it does NOT
+#            do is check out this repository or execute any of its source or
+#            package code. That is the boundary: the OIDC credential is never
+#            live in a job running code from this project.
+#   smoke    no publishing permission. Installs from TestPyPI and runs a
+#            spectrum.
+#
+# Third-party actions are pinned to immutable commit SHAs rather than tags, so a
+# retagged upstream release cannot change what runs here. To update one, resolve
+# the new SHA, read the diff, and change the pin in a reviewed commit --
+# `gh api repos/<owner>/<repo>/commits/<tag>` gives the SHA.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: 'Exact version to publish, e.g. 0.1.0rc2'
+        required: true
+        type: string
+      expected_commit:
+        description: 'Full 40-character commit SHA being released'
+        required: true
+        type: string
+      confirm:
+        description: 'Type "publish to testpypi" to proceed'
+        required: true
+        type: string
+
+# Nothing is granted at the top level. Each job asks for exactly what it needs.
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never cancel a publish half-way
+
+env:
+  ARTIFACT_NAME: release-distributions
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Build and verify. No publishing credential of any kind.
+  # ---------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      # Carried to the smoke job explicitly, and these are the VALIDATED values
+      # rather than raw dispatch input. Asking TestPyPI for "the latest" would
+      # test whatever happens to be newest there, which on a re-run is not
+      # necessarily what this run just built.
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.source.outputs.commit }}
+    env:
+      # Every dispatch input is mapped through the environment. A `${{ ... }}`
+      # expression pasted into a `run:` block is substituted into the shell
+      # text before the shell sees it, so an input containing a quote or a
+      # semicolon becomes script. Quoted "$VARIABLES" are data.
+      CONFIRM: ${{ inputs.confirm }}
+      EXPECTED_VERSION: ${{ inputs.expected_version }}
+      EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+      ACTUAL_COMMIT: ${{ github.sha }}
+      ACTUAL_REF: ${{ github.ref }}
+    steps:
+      - name: Refuse an unconfirmed run
+        # A dispatch is one click. Requiring the phrase makes an accidental
+        # upload take a deliberate sentence.
+        run: |
+          if [ "$CONFIRM" != "publish to testpypi" ]; then
+            echo "::error::confirmation phrase not given; nothing was built"
+            exit 1
+          fi
+
+      - name: Refuse a source that was not reviewed
+        id: source
+        # Three independent questions, three independent answers. The phrase
+        # says publication was intended; the version says which release number;
+        # this says which reviewed source. A dispatch from a branch, or against
+        # a commit nobody named, is refused before anything is built.
+        run: |
+          set -euo pipefail
+          if [ "$ACTUAL_REF" != "refs/heads/main" ]; then
+            echo "::error::releases are built from main only; got $ACTUAL_REF"
+            exit 1
+          fi
+          case "$EXPECTED_COMMIT" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+            *) echo "::error::expected_commit must be a full 40-character SHA, got '$EXPECTED_COMMIT'"
+               exit 1 ;;
+          esac
+          if [ "$EXPECTED_COMMIT" != "$ACTUAL_COMMIT" ]; then
+            echo "::error::this run is at $ACTUAL_COMMIT, but $EXPECTED_COMMIT was named"
+            exit 1
+          fi
+          echo "source: $ACTUAL_REF at $ACTUAL_COMMIT"
+          echo "commit=$ACTUAL_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install the release bootstrap
+        # BEFORE the version gate, because the gate imports packaging to parse
+        # the version. It ran after this step until now, and a clean 3.12
+        # environment therefore failed with ModuleNotFoundError before it could
+        # refuse anything -- it only appeared to work where a developer machine
+        # happened to have packaging already.
+        #
+        # packaging is stated directly rather than relied on as a transitive of
+        # build. A dependency that arrives by accident is one upstream change
+        # away from not arriving. Broad major ceilings, matching the policy the
+        # package itself uses for numpy and scipy.
+        #
+        # tomli is here for the same reason one layer down: the gate reads
+        # pyproject.toml, and tomllib is stdlib only from 3.11. This job pins
+        # 3.12 so it would not bite today, but "would not bite today" is how
+        # the packaging gap above got in.
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'packaging>=23,<27' \
+            'tomli>=2.0,<3; python_version<"3.11"' \
+            'build>=1.0,<2' \
+            'twine>=5,<7'
+          python -c "import packaging; print('packaging', packaging.__version__)"
+
+      - name: Refuse a version nobody asked for
+        id: version
+        # The confirmation phrase says THAT someone meant to publish. This says
+        # WHAT. A .dev version is refused outright: it is a working number that
+        # moves, and an index filename is permanent.
+        run: |
+          set -euo pipefail
+          # The checker writes the validated value to $GITHUB_OUTPUT itself.
+          # Echoing $EXPECTED_VERSION here would export the raw dispatch input,
+          # so a value that differed from the validated one -- by whitespace, or
+          # by any future normalisation -- would reach the smoke job unchecked.
+          python tools/check_release_version.py \
+            --expected "$EXPECTED_VERSION" --github-output
+
+      - name: Build the universal wheel and the sdist
+        # GP_DLA_FINDER_NO_COMPILE=1 is not optional. Without it the runner
+        # builds a platform wheel whenever libcerf happens to be present, and
+        # the release shape is a single py3-none-any wheel.
+        #
+        # dist/ is emptied first. A runner checkout is fresh, so nothing should
+        # be there -- but "should be empty" and "is empty" are different
+        # statements, and only one of them survives a change to how this job is
+        # reached. check_release_shape.py then requires exactly one wheel and
+        # one sdist, so a stray file fails rather than being uploaded.
+        run: |
+          set -euo pipefail
+          rm -rf dist/
+          GP_DLA_FINDER_NO_COMPILE=1 python -m build --wheel
+          python -m build --sdist
+
+      - name: The built files must carry the version that was asked for
+        # A stale dist/ is exactly how correct metadata and the wrong bytes end
+        # up in the same upload.
+        run: |
+          python tools/check_release_version.py \
+            --expected "$EXPECTED_VERSION" --dist dist/
+
+      - name: twine check
+        run: python -m twine check --strict dist/*
+
+      - name: The wheel must be universal and carry no compiled object
+        run: |
+          set -euo pipefail
+          ls dist/
+          python tools/check_release_shape.py dist/
+
+      - name: Release-artifact, privacy and provenance checks
+        # The same suite that guards these properties on every push, run against
+        # the files that are about to leave the building.
+        run: |
+          python -m pip install -e '.[dev,desi]'
+          python -m pytest tests/test_release_artifacts.py tests/test_asset_hygiene.py -q
+
+      - name: Record SHA-256 digests
+        # The manifest is what makes "the public files are the files we tested"
+        # checkable later, rather than asserted.
+        run: |
+          cd dist
+          sha256sum * | tee SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # 2. Publish. The only job with an OIDC token. It runs pinned actions and
+  #    checksum commands, and no code from this repository.
+  # ---------------------------------------------------------------------------
+  publish-testpypi:
+    needs: build
+    runs-on: ubuntu-latest
+    # Must match the TestPyPI pending publisher exactly.
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/gp_dla_finder
+    permissions:
+      id-token: write # the OIDC token, and nothing else
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: dist/
+
+      - name: The manifest must describe the files being uploaded
+        # Cheap, and it is the one check that would notice the artifact being
+        # swapped between the two jobs.
+        run: |
+          cd dist
+          sha256sum --check SHA256SUMS.txt
+          rm SHA256SUMS.txt
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
+
+  # ---------------------------------------------------------------------------
+  # 3. Install what was just published, and run a spectrum through it.
+  # ---------------------------------------------------------------------------
+  smoke-testpypi:
+    needs: [build, publish-testpypi]
+    runs-on: ubuntu-latest
+    permissions: {} # no credential of any kind
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Fetch the exact wheel from TestPyPI
+        # Two steps rather than one resolver call across two indexes. Asking pip
+        # to choose between TestPyPI and PyPI for every package makes it
+        # ambiguous which index each one came from -- including this one, which
+        # is the whole thing under test. Here the wheel provably comes from
+        # TestPyPI, and only its dependencies come from the normal index.
+        run: |
+          set -euo pipefail
+          mkdir -p testpypi-wheel
+          for attempt in 1 2 3 4 5 6; do
+            if python -m pip download \
+                --isolated --no-cache-dir \
+                --no-deps --only-binary :all: \
+                --index-url https://test.pypi.org/simple/ \
+                --dest testpypi-wheel \
+                "gp_dla_finder==${VERSION}"; then
+              break
+            fi
+            if [ "$attempt" = "6" ]; then
+              echo "::error::gp_dla_finder==${VERSION} never appeared on TestPyPI"
+              exit 1
+            fi
+            echo "not on the index yet (attempt $attempt); waiting"
+            sleep 30
+          done
+          ls -l testpypi-wheel/
+
+      - name: The downloaded file must be the version just published
+        run: |
+          set -euo pipefail
+          count=$(ls testpypi-wheel/*.whl | wc -l)
+          test "$count" -eq 1 || { echo "::error::expected one wheel, got $count"; exit 1; }
+          wheel=$(ls testpypi-wheel/*.whl)
+          echo "downloaded: $(basename "$wheel")"
+          case "$(basename "$wheel")" in
+            gp_dla_finder-${VERSION}-py3-none-any.whl) ;;
+            *) echo "::error::got $(basename "$wheel"), expected gp_dla_finder-${VERSION}-py3-none-any.whl"
+               exit 1 ;;
+          esac
+
+      - name: Install that local wheel, dependencies from production PyPI
+        # --isolated ignores pip.conf, PIP_* variables and any runner-level
+        # index configuration, and --index-url states the dependency source
+        # rather than inheriting one. Without both, a configured alternate
+        # index could supply a dependency and nothing here would say so.
+        #
+        # --no-cache-dir on the download above matters for a different reason:
+        # --isolated does not disable pip's HTTP cache, so a wheel cached by an
+        # earlier run could be served without TestPyPI being contacted at all.
+        # The bytes would still be that version, but "it came from TestPyPI in
+        # this run" would be an assumption rather than something demonstrated.
+        run: |
+          set -euo pipefail
+          python -m pip install \
+            --isolated --no-cache-dir \
+            --index-url https://pypi.org/simple/ \
+            testpypi-wheel/*.whl
+          python -m pip show gp_dla_finder
+
+      - name: Run one spectrum on the NumPy backend, and check the version
+        run: |
+          python - <<'PY'
+          import os
+          import numpy as np
+          from gp_dla_finder import Config, __version__
+          from gp_dla_finder.finder import Finder
+          from gp_dla_finder.gp.spectrum import Spectrum
+
+          expected = os.environ["VERSION"]
+          print("expected:", expected)
+          print("installed:", __version__)
+          assert __version__ == expected, (
+              f"installed {__version__}, expected {expected}: the smoke test ran "
+              "against a different build than the one just published"
+          )
+
+          finder = Finder(
+              Config.desi_y3_fast(max_absorbers=1, enable_tau_eb=False),
+              warn_about_threads=False,
+          )
+          wave = np.arange(3600.0, 5600.0, 0.8)
+          rng = np.random.default_rng(1)
+          spectrum = Spectrum(
+              wavelength=wave,
+              flux=1.0 + rng.normal(0.0, 0.2, wave.size),
+              ivar=np.full_like(wave, 25.0),
+              z_qso=2.6,
+              mask=np.zeros_like(wave, dtype=bool),
+          )
+          result = finder.run(spectrum, targetid=1)
+          print("status :", result.status)
+          print("backend:", result.provenance["backend_backend"])
+          assert result.status == "completed", result.reason
+          assert result.provenance["backend_backend"] == "numpy"
+          PY

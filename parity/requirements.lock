@@ -1,0 +1,39 @@
+# Canonical parity environment lock — linux/amd64, CPython 3.10.
+#
+# Top-level AND transitive dependencies, pinned with hashes so the image build is
+# reproducible and `--require-hashes` is satisfiable.
+#
+# Regenerated cross-platform (no Linux machine required) with:
+#
+#   pip download --only-binary=:all: --platform manylinux2014_x86_64 \
+#       --python-version 310 --implementation cp --dest wheels numpy==X scipy==Y
+#   pip download --only-binary=:all: --platform any --python-version 310 \
+#       --implementation py --dest wheels pytest==Z
+#   for w in wheels/*.whl; do pip hash "$w"; done
+#
+# Platform-specific wheels are marked; pure-Python wheels apply everywhere.
+#
+# h5py is present for the REFERENCE implementation's benefit, not this package's:
+# gpy_dla_detection.generate_samples imports it at module scope, so the canonical
+# image cannot run those comparison tests without it. gp_dla_finder itself keeps
+# h5py as an optional extra.
+exceptiongroup==1.3.1 \
+    --hash=sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598
+iniconfig==2.3.0 \
+    --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+numpy==2.2.6 \
+    --hash=sha256:fc7b73d02efb0e18c000e9ad8b83480dfcd5dfd11065997ed4c6747470ae8915
+packaging==26.3 \
+    --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+pluggy==1.6.0 \
+    --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+pytest==8.3.3 \
+    --hash=sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2
+scipy==1.15.3 \
+    --hash=sha256:9e2abc762b0811e09a0d3258abee2d98e0c703eee49464ce0069590846f31d40
+tomli==2.4.1 \
+    --hash=sha256:0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe
+typing-extensions==4.16.0 \
+    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+h5py==3.14.0 \
+    --hash=sha256:1223b902ef0b5d90bcc8a4778218d6d6cd0f5561861611eda59fa6c52b922f4d
