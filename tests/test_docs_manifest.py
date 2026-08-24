@@ -112,10 +112,10 @@ def test_manifest_claims_about_the_api_rename_are_true():
 # --- figures must actually render, in BOTH renderers ------------------------
 #
 # The figures were added as MyST `{image}` directives, which Sphinx renders and
-# GitHub shows as a literal code block. Since the docs site is not published,
-# GitHub is where these pages are read -- so the figures were invisible exactly
-# where anyone would look at them. They are now <picture> elements, which both
-# renderers understand. These tests stop that regressing.
+# GitHub shows as a literal code block. The pages are available both on the
+# hosted Sphinx site and through GitHub's source view, so the markup must work
+# in both. They are now <picture> elements, which both renderers understand.
+# These tests stop that regressing.
 
 
 def _pages_with_figures():

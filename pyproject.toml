@@ -13,7 +13,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gp_dla_finder"
-version = "0.1.0rc2"
+version = "0.1.0rc3"
 description = "Gaussian-process Bayesian detection of damped Lyman-alpha absorbers in quasar spectra"
 readme = "README.md"
 requires-python = ">=3.10"

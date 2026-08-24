@@ -11,8 +11,8 @@ provide its dependencies.
 python -m pip download \
   --no-deps --only-binary :all: \
   --index-url https://test.pypi.org/simple/ \
-  'gp_dla_finder==0.1.0rc2'
-python -m pip install gp_dla_finder-0.1.0rc2-py3-none-any.whl
+  'gp_dla_finder==0.1.0rc3'
+python -m pip install gp_dla_finder-0.1.0rc3-py3-none-any.whl
 ```
 
 The inference core requires NumPy and SciPy. It does not require a compiler.

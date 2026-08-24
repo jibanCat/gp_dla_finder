@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0rc3 - 2026-08-24
+
+This release candidate carries the same inference implementation and bundled
+scientific assets as 0.1.0rc2. It updates the distribution metadata and public
+documentation after the Read the Docs deployment was activated:
+
+* the package's Documentation URL now points to the hosted documentation; and
+* the README and maintainer pages link to the live site and describe the active
+  Read the Docs build.
+
+There are no API, numerical-model, or catalogue-format changes in this release
+candidate.
+
 ## 0.1.0rc2 - 2026-08-24
 
 This release candidate packages the inference core of the GP-based DLA finder

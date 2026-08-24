@@ -6,7 +6,7 @@ the DESI GP-DLA finder, packaged so you can use it without the full production
 pipeline.
 
 :::{warning}
-**Release candidate `0.1.0rc2`.** At the moment, the supported workflow compares
+**Release candidate `0.1.0rc3`.** At the moment, the supported workflow compares
 the null and one-absorber models. The two-absorber model is also workable in a
 production workflow when you opt in. Its current statistical estimator remains
 experimental: it follows the reference implementation on the cases we have

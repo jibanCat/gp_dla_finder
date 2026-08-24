@@ -1,9 +1,4 @@
-"""Sphinx configuration.
-
-Prepared, not published. PI approval is required before this project appears on
-Read the Docs or anywhere else public; building locally with ``make -C docs html``
-is fine and is what this configuration is for.
-"""
+"""Sphinx configuration for the public Read the Docs and local builds."""
 
 from __future__ import annotations
 
@@ -16,7 +11,7 @@ try:
 
     release = _version("gp_dla_finder")
 except Exception:  # pragma: no cover - docs may build from a source tree
-    release = "0.1.0rc2"
+    release = "0.1.0rc3"
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -34,9 +29,8 @@ nb_execution_mode = "auto"
 nb_execution_timeout = 600
 
 # html_image: figures are written as <picture> so the SAME markup renders in
-# Sphinx AND on GitHub. MyST {image} directives show up as literal code
-# blocks on GitHub, which is where these pages are actually read today --
-# the docs site is not published.
+# the hosted Sphinx site and in GitHub's source view. MyST {image} directives
+# show up as literal code blocks on GitHub.
 myst_enable_extensions = [
     "dollarmath",
     "amsmath",
