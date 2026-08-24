@@ -1,8 +1,9 @@
 # Previewing these pages locally
 
-The documentation is not online yet, but you can view the complete rendered site
-locally. The commands below were tested on macOS/arm64 with the versions listed
-at the end of the page.
+The documentation is published at
+<https://gp-dla-finder.readthedocs.io/en/latest/>. You can also build and view
+the complete rendered site locally. The commands below were tested on
+macOS/arm64 with the versions listed at the end of the page.
 
 ## From scratch
 
@@ -65,8 +66,8 @@ This catches things such as missing anchors and renamed API objects.
 `fail_on_warning: true`. A successful local build therefore exercises the same
 Sphinx configuration.
 
-No Read the Docs project is connected yet. The configuration is ready for the
-later deployment, but it does not publish anything by itself.
+The connected Read the Docs project uses this configuration for the hosted
+build.
 
 ## Versions this was tested with
 

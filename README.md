@@ -250,8 +250,9 @@ carry a platform-specific extension and would not compile it locally.
 
 ## Documentation
 
-The Sphinx documentation is not online yet. You can still build it locally; see
-[docs/preview.md](docs/preview.md).
+The complete Sphinx documentation is available at
+[gp-dla-finder.readthedocs.io](https://gp-dla-finder.readthedocs.io/en/latest/).
+For a local build, see [docs/preview.md](docs/preview.md).
 
 | page | what it covers |
 |---|---|

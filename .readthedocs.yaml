@@ -1,9 +1,7 @@
 # Read the Docs configuration.
 #
-# PREPARED, NOT ACTIVATED. This file lets the docs build reproducibly and lets a
-# future publication be a one-click decision rather than a scramble. It does NOT
-# publish anything: no Read the Docs project is connected to this repository, and
-# connecting one is a PI decision, not an engineering one.
+# This file defines the reproducible build for the public documentation at
+# https://gp-dla-finder.readthedocs.io/en/latest/.
 #
 # Build locally with:  make -C docs html
 version: 2

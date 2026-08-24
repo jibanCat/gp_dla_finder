@@ -7,10 +7,9 @@ name: docs
 # ---------------------------------------------------------------------------
 # THIS WORKFLOW PUBLISHES NOTHING.
 #
-# No GitHub Pages deploy, no Read the Docs webhook, no PyPI, no artifact sent to
-# any public service. The built HTML is uploaded as a CI artifact for private
-# review only. Connecting a Read the Docs project, or publishing the docs
-# anywhere, is a separate PI decision.
+# This workflow does not deploy to GitHub Pages, Read the Docs, or PyPI. The
+# built HTML is uploaded only as a CI artifact. The connected Read the Docs
+# project builds and publishes the hosted documentation independently.
 # ---------------------------------------------------------------------------
 
 on:

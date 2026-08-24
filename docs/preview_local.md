@@ -1,11 +1,11 @@
 # Maintainer check for the documentation build
 
-The hosted documentation is prepared but **not connected**. The
-`.readthedocs.yaml` file is ready, but nothing in this repository publishes the
-site by itself.
+The hosted documentation is available at
+<https://gp-dla-finder.readthedocs.io/en/latest/>. Read the Docs builds it with
+the repository's `.readthedocs.yaml` configuration.
 
-This page gives the maintainer checks that match the planned Read the Docs
-build. If you only want to open the site locally, the shorter walkthrough is in
+This page gives the maintainer checks that match the Read the Docs build. If you
+only want to open the site locally, the shorter walkthrough is in
 {doc}`preview`.
 
 ## One command

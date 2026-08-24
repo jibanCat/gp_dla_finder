@@ -94,11 +94,7 @@ docs = [
 Repository = "https://github.com/jibanCat/gp_dla_finder"
 Issues = "https://github.com/jibanCat/gp_dla_finder/issues"
 Changelog = "https://github.com/jibanCat/gp_dla_finder/blob/main/CHANGELOG.md"
-# The repository's own docs directory, deliberately: no hosted documentation
-# project exists yet, and pointing at a URL that does not resolve is worse than
-# pointing at the source the site is built from. Repoint this when the hosted
-# site is live.
-Documentation = "https://github.com/jibanCat/gp_dla_finder/tree/main/docs"
+Documentation = "https://gp-dla-finder.readthedocs.io/en/latest/"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
