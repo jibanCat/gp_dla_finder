@@ -25,8 +25,8 @@ jobs:
         # anything the endpoints did not.
         python-version: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["3.10","3.11","3.12","3.13"]' || '["3.10","3.13"]') }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -42,8 +42,8 @@ jobs:
     # The inference core must work with numpy + scipy alone.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
       - run: pip install -e . pytest
@@ -63,8 +63,8 @@ jobs:
     # explicitly, not to make astropy a core dependency.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -120,7 +120,7 @@ jobs:
           fi
           grep -E 'passed|failed' catalogue-report.txt | tail -1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: catalogue-test-report
@@ -140,8 +140,8 @@ jobs:
     # still surfaced there rather than hidden by this pin.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -191,7 +191,7 @@ jobs:
           python -m pytest tests/test_voigt_backends.py tests/test_evidence.py \
             -p no:cacheprovider -q
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: backend-acceptance-pinned
@@ -207,15 +207,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macOS runners bill at 10x. The optional-extension check is about
-        # build behaviour, not platform science, so Linux carries it on every
-        # push and macOS runs on demand and weekly.
+        # The optional-extension check is about build behaviour, not platform
+        # science. Linux carries it on every push; macOS runs on demand and
+        # weekly to keep routine CI proportional.
         os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
         libcerf: [present, absent]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -281,7 +281,7 @@ jobs:
           python tools/backend_agreement_report.py \
             --json backend-agreement-${{ matrix.os }}.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: matrix.libcerf == 'present'
         with:
           name: backend-agreement-${{ matrix.os }}

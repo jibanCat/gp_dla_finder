@@ -57,7 +57,7 @@ jobs:
   container-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build the canonical image
         run: |
@@ -77,7 +77,7 @@ jobs:
           docker run --rm --platform linux/amd64 gpdlf-parity:${{ github.sha }} \
             python -m pytest -q -m "not slow"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: canonical-environment-record
           path: |
@@ -87,7 +87,7 @@ jobs:
   canonical-parity:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: package
 
@@ -95,7 +95,7 @@ jobs:
       # GITHUB_TOKEN, which under `permissions: contents: read` is not
       # write-capable; `persist-credentials: false` leaves nothing behind.
       - name: Check out the public reference at the pinned commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ env.REFERENCE_REPO }}
           ref: ${{ env.REFERENCE_COMMIT }}
@@ -178,7 +178,7 @@ jobs:
             echo "command=python -m pytest -m needs_reference"
           } | tee -a parity-report.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: canonical-parity-report
