@@ -50,7 +50,6 @@ jobs:
       TESTPYPI_RUN_ID: ${{ inputs.testpypi_run_id }}
       ACTUAL_COMMIT: ${{ github.sha }}
       ACTUAL_REF: ${{ github.ref }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Refuse an unconfirmed or ambiguous promotion
         run: |
@@ -65,6 +64,8 @@ jobs:
           case "$TESTPYPI_RUN_ID" in *[!0-9]*|'') echo "::error::testpypi_run_id must be numeric"; exit 1 ;; esac
 
       - name: The named TestPyPI run must be the successful source run
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TESTPYPI_RUN_ID}" > source-run.json
@@ -81,6 +82,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # 0 fetches tags, which the annotated-tag check below needs.
+          # Nothing here talks to the remote afterwards -- `git cat-file` and
+          # `git rev-parse` are local -- so the token does not need to stay in
+          # .git/config while this job pip-installs and runs repository code.
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
@@ -114,14 +120,15 @@ jobs:
         id: files
         run: |
           set -euo pipefail
-          test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 3
+          test "$(find dist -mindepth 1 | wc -l)" -eq 3
           test -f dist/SHA256SUMS.txt
           cd dist
           sha256sum --check SHA256SUMS.txt
           wheel="gp_dla_finder-${EXPECTED_VERSION}-py3-none-any.whl"
           sdist="gp_dla_finder-${EXPECTED_VERSION}.tar.gz"
-          test -f "$wheel" && test -f "$sdist"
-          test "$(find . -maxdepth 1 -type f ! -name SHA256SUMS.txt ! -name "$wheel" ! -name "$sdist" | wc -l)" -eq 0
+          test -f "$wheel"
+          test -f "$sdist"
+          test "$(find . -mindepth 1 -maxdepth 1 ! -name SHA256SUMS.txt ! -name "$wheel" ! -name "$sdist" | wc -l)" -eq 0
           cd ..
           python tools/check_release_version.py --expected "$EXPECTED_VERSION" --dist dist/
           python tools/check_release_shape.py dist/
@@ -180,8 +187,14 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}
           path: dist/
       - name: The staged manifest must still match
+        # `sha256sum --check` says every LISTED file is intact; it says nothing
+        # about a file that is present and unlisted, and the next step hands
+        # `dist/*` to twine. So the set is asserted too, in the one job that
+        # cannot be un-run.
         run: |
+          set -euo pipefail
           cd dist
+          test "$(find . -mindepth 1 | wc -l)" -eq 3
           sha256sum --check SHA256SUMS.txt
           rm SHA256SUMS.txt
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

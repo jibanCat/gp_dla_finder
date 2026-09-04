@@ -77,6 +77,13 @@ dev = [
     "tomli>=2.0; python_version<'3.11'",
     "pytest>=7.4",
     "pytest-cov>=4.1",
+    # Not a test-runner nicety: tests/test_release_workflow.py and
+    # tests/test_pypi_workflow.py parse the publishing workflows, and the
+    # assertions on `permissions: {}` and on OIDC isolation live behind
+    # `pytest.importorskip("yaml")`. PyYAML currently arrives only as a
+    # transitive dependency of pre-commit, so dropping or replacing pre-commit
+    # would make those four tests skip silently and the suite stay green.
+    "pyyaml>=6",
     "ruff>=0.6",
     "pre-commit>=3.5",
 ]

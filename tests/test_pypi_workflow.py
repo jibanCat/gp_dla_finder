@@ -56,9 +56,16 @@ def test_default_permissions_are_empty_and_only_publisher_has_oidc(workflow):
 
 
 def test_pending_publisher_identity_is_exact(workflow):
+    # Three of the four publisher fields -- owner, repository, workflow
+    # filename -- are properties of the repository rather than of this
+    # checkout, so they are recorded in the release note instead of asserted
+    # here. What is checkable is that the file really sits at the path the
+    # publisher will be told about, and that the job declares the matching
+    # environment.
     publish = workflow["jobs"]["publish-pypi"]
     assert publish["environment"]["name"] == "pypi"
-    assert WORKFLOW.name == "pypi.yml"
+    assert WORKFLOW.exists()
+    assert WORKFLOW.parent == ROOT / ".github" / "workflows"
 
 
 def test_oidc_job_never_checks_out_or_executes_project_code(workflow):
@@ -69,15 +76,18 @@ def test_oidc_job_never_checks_out_or_executes_project_code(workflow):
     assert any("pypa/gh-action-pypi-publish" in item for item in uses)
     for step in steps:
         run = step.get("run", "")
-        assert "python" not in run
-        assert "pip" not in run
-        assert "build" not in run
+        assert not re.search(r"\bpython(?:3(?:\.\d+)*)?\b", run)
+        assert not re.search(r"\bpip(?:3)?\b", run)
+        assert not re.search(r"\bbuild\b", run)
 
 
 def test_it_promotes_an_exact_successful_testpypi_run_without_rebuilding(text):
     for required in (
+        "repos/${GITHUB_REPOSITORY}/actions/runs/${TESTPYPI_RUN_ID}",
+        '.name == "release"',
         '.path == ".github/workflows/release.yml"',
         '.event == "workflow_dispatch"',
+        '.status == "completed"',
         '.conclusion == "success"',
         '.head_branch == "main"',
         ".head_sha == $commit",
@@ -117,16 +127,19 @@ def test_testpypi_public_wheel_and_sdist_must_match_the_artifact(text):
     assert 'os.environ["SDIST"]' in stage
 
 
-_USES = re.compile(r"uses:\s*([^\s@]+)@([^\s#]+)")
-
-
-def test_every_action_is_immutable_and_documented(text):
-    for line in text.splitlines():
-        if "uses:" not in line or "@" not in line:
-            continue
-        match = _USES.search(line)
-        assert match and re.fullmatch(r"[0-9a-f]{40}", match.group(2)), line
-        assert re.search(r"#\s*v[\d.]+", line), line
+def test_every_action_is_immutable_and_documented(workflow, text):
+    used = [
+        step["uses"]
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if "uses" in step
+    ]
+    assert used, "no `uses:` steps found; this walk is broken"
+    for item in used:
+        # Enumerated, not pattern-matched out of the file, so a `uses:` this
+        # test cannot parse FAILS instead of being skipped.
+        assert re.fullmatch(r"[^/\s]+/[^@\s]+@[0-9a-f]{40}", item), item
+        assert re.search(rf"{re.escape(item)}\s*#\s*v[\d.]+", text), item
 
 
 def test_no_secret_or_api_token_and_no_test_index_in_production_job(text):
@@ -135,6 +148,7 @@ def test_no_secret_or_api_token_and_no_test_index_in_production_job(text):
     publish = text.split("  publish-pypi:", 1)[1].split("  smoke-pypi:", 1)[0]
     assert "test.pypi.org" not in publish
     assert "repository-url:" not in publish
+    assert "repository_url" not in publish
 
 
 def test_smoke_downloads_wheel_and_sdist_and_compares_exact_hashes(text):

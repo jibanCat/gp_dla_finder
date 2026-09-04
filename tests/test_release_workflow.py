@@ -195,7 +195,7 @@ def test_the_wheel_is_built_without_the_compiled_extension(text):
 def test_the_artifacts_are_hashed_and_the_hashes_are_checked(text):
     """The manifest is what makes "the public files are the tested files"
     checkable rather than asserted."""
-    assert "sha256sum * | tee SHA256SUMS.txt" in text
+    assert "sha256sum *.whl *.tar.gz | tee SHA256SUMS.txt" in text
     assert "sha256sum --check SHA256SUMS.txt" in text
 
 
