@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0 - 2026-09-04
+
+This is the first final release of `gp_dla_finder`. It uses the same inference
+implementation and bundled scientific assets as 0.1.0rc3.
+
+Since rc3, the release workflow has gained a separate production-PyPI path. It
+promotes the exact wheel and source distribution already published to and
+smoke-tested on TestPyPI, without rebuilding them. The package API, numerical
+results, and catalogue formats are unchanged.
+
+The supported scientific scope also stays the same. The null-versus-one-
+absorber workflow is the supported path, the two-absorber estimator remains
+experimental, and parameter estimates remain preliminary. See
+[`docs/caveats.md`](docs/caveats.md) before using a result for science.
+
 ## 0.1.0rc3 - 2026-08-24
 
 This release candidate carries the same inference implementation and bundled

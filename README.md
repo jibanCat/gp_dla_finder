@@ -55,7 +55,7 @@ CI: [tests](https://github.com/jibanCat/gp_dla_finder/actions/workflows/tests.ym
 </div>
 
 > [!WARNING]
-> ## Status: `0.1.0rc3` release candidate
+> ## Status: `0.1.0`
 >
 > At the moment, the statistically supported workflow compares the null and
 > one-absorber models for one spectrum at a time. The two-absorber model is also
@@ -69,10 +69,10 @@ CI: [tests](https://github.com/jibanCat/gp_dla_finder/actions/workflows/tests.ym
 > preliminary rather than precision measurements, and the uncertainty fields
 > are `NaN`.
 >
-> The public `0.1.0rc3` candidate is distributed through TestPyPI. The package is
-> already useful for candidate finding and method development, but the broader
-> validation is not complete enough for unrestricted science production yet.
-> What we have and have not checked is summarized in
+> The `0.1.0` release is distributed through PyPI. The package is useful for
+> candidate finding and method development, but the broader validation is not
+> complete enough for unrestricted science production yet. What we have and
+> have not checked is summarized in
 > [docs/caveats.md](docs/caveats.md).
 
 ### What works today
@@ -189,16 +189,10 @@ byte-identical to the deployed production arrays. See
 
 ## Installation
 
-> **The release candidate is on TestPyPI, not production PyPI.** An ordinary
-> `pip install gp_dla_finder` will not find it yet. To evaluate the candidate,
-> download the wheel only from TestPyPI and then install it normally:
+Install the `0.1.0` release from PyPI:
 
 ```bash
-python -m pip download \
-  --no-deps --only-binary :all: \
-  --index-url https://test.pypi.org/simple/ \
-  'gp_dla_finder==0.1.0rc3'
-python -m pip install gp_dla_finder-0.1.0rc3-py3-none-any.whl
+python -m pip install 'gp_dla_finder==0.1.0'
 ```
 
 For development, install from a checkout instead:

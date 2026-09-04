@@ -27,7 +27,7 @@ keywords:
   - Gaussian process
   - spectroscopy
 license: MIT
-version: 0.1.0rc3
+version: 0.1.0
 references:
   # --- method papers -------------------------------------------------------
   - type: article

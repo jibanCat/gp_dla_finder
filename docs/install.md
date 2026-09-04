@@ -1,18 +1,9 @@
 # Installation
 
-:::{warning}
-**The release candidate is on TestPyPI, not production PyPI.** An ordinary
-`pip install gp_dla_finder` will not find it yet. The two-step command below
-downloads the candidate only from TestPyPI, then lets the normal package index
-provide its dependencies.
-:::
+Install the `0.1.0` release from PyPI:
 
 ```bash
-python -m pip download \
-  --no-deps --only-binary :all: \
-  --index-url https://test.pypi.org/simple/ \
-  'gp_dla_finder==0.1.0rc3'
-python -m pip install gp_dla_finder-0.1.0rc3-py3-none-any.whl
+python -m pip install 'gp_dla_finder==0.1.0'
 ```
 
 The inference core requires NumPy and SciPy. It does not require a compiler.
@@ -38,13 +29,13 @@ pip install -e '/path/to/gp_dla_finder[dev]'
 ## What the released install gives you
 
 The package provides a **universal wheel** (`py3-none-any`) and a source
-distribution. Once the package reaches production PyPI, the ordinary path
+distribution. The ordinary PyPI installation
 
 ```bash
 pip install gp_dla_finder
 ```
 
-will install the wheel, so there is no compiler or local build step. It uses the
+installs the wheel, so there is no compiler or local build step. It uses the
 official NumPy Voigt backend, which is the configuration we recommend for v0.1.
 
 The wheel does not carry a compiled extension. If you want the optional

@@ -1,9 +1,8 @@
 # Scientific caveats
 
-The `0.1.0rc3` release candidate is already useful for candidate finding and
-method development, but several parts of the scientific validation are still
-open. Before treating a Result as a science measurement, keep the following
-limits in mind.
+The `0.1.0` release is useful for candidate finding and method development, but
+several parts of the scientific validation are still open. Before treating a
+Result as a science measurement, keep the following limits in mind.
 
 ## Column-density range
 

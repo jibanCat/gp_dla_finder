@@ -11,7 +11,7 @@ try:
 
     release = _version("gp_dla_finder")
 except Exception:  # pragma: no cover - docs may build from a source tree
-    release = "0.1.0rc3"
+    release = "0.1.0"
 
 extensions = [
     "sphinx.ext.autodoc",
